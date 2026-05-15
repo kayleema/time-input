@@ -1,0 +1,22 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "time-input",
+  "homepage": "https://your-domain.com",
+  "items": [
+    {
+      "name": "time-input",
+      "type": "registry:ui",
+      "title": "Time Input",
+      "description": "Flexible time input with auto zero-padding, 12/24h format, AM/PM toggle, and optional seconds.",
+      "dependencies": ["class-variance-authority"],
+      "registryDependencies": ["utils"],
+      "files": [
+        {
+          "path": "src/components/ui/time-input.tsx",
+          "type": "registry:ui",
+          "target": "components/ui/time-input.tsx"
+        }
+      ]
+    }
+  ]
+}

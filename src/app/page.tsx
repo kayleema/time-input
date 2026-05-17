@@ -1,4 +1,4 @@
-import { InstallCommand, InteractiveDemo, VariantsDemo, SizesDemo } from "./demo"
+import { InstallCommand, InteractiveDemo, VariantsDemo, LocaleDemo, ScrollToStepDemo, SizesDemo } from "./demo"
 
 const REGISTRY_URL = process.env.NEXT_PUBLIC_URL
   ? `${process.env.NEXT_PUBLIC_URL}/r/time-input.json`
@@ -62,6 +62,16 @@ export default function Page() {
           <VariantsDemo />
         </Section>
 
+        {/* Localization */}
+        <Section title="Localization">
+          <LocaleDemo />
+        </Section>
+
+        {/* Scroll to step */}
+        <Section title="Scroll to step">
+          <ScrollToStepDemo />
+        </Section>
+
         {/* Sizes */}
         <Section title="Sizes">
           <SizesDemo />
@@ -80,6 +90,40 @@ const [time, setTime] = React.useState("14:05")
 
 // With seconds
 <TimeInput showSeconds value={time} onChange={setTime} />
+
+// Custom placeholder
+<TimeInput placeholder="--" />
+
+// Fill minutes with 00 when only hours are entered
+<TimeInput autoFillMinutesOnBlur />
+
+// Round to the nearest 5 minutes on blur
+<TimeInput roundMinutesToNearest={5} />
+
+// Round down or up instead
+<TimeInput roundMinutesToNearest={5} roundMinutesMode="floor" />
+<TimeInput roundMinutesToNearest={5} roundMinutesMode="ceil" />
+
+// Avoid rolling past 24:00 at the end of the day
+<TimeInput
+  roundMinutesToNearest={5}
+  roundLastIntervalDown
+/>
+
+// Allow business-hour overflow such as 27:00
+<TimeInput allowOverflowHours maxOverflowHours={27} defaultValue="27:00" />
+
+// Allow exactly 24:00, but nothing beyond
+<TimeInput allowOverflowHours maxOverflowHours={24} defaultValue="24:00" />
+
+// Localized AM/PM via Intl.DateTimeFormat
+<TimeInput format="12h" locale="ko-KR" />
+
+// Manual labels — use when your i18n library has the strings
+<TimeInput format="12h" periodLabels={{ am: t("time.am"), pm: t("time.pm") }} />
+
+// Scroll to step (click a segment first, then scroll)
+<TimeInput scrollToStep />
 
 // Sizes
 <TimeInput size="sm" />
@@ -146,6 +190,16 @@ const [time, setTime] = React.useState("14:05")
                   ["onChange", "(value: string) => void", "—"],
                   ["format", '"12h" | "24h"', '"24h"'],
                   ["showSeconds", "boolean", "false"],
+                  ["placeholder", "string", "—"],
+                  ["autoFillMinutesOnBlur", "boolean", "false"],
+                  ["roundMinutesToNearest", "number", "—"],
+                  ["roundMinutesMode", '"floor" | "ceil" | "nearest"', '"nearest"'],
+                  ["roundLastIntervalDown", "boolean", "false"],
+                  ["allowOverflowHours", "boolean", "false"],
+                  ["maxOverflowHours", "number", "99"],
+                  ["locale", "string", "—"],
+                  ["periodLabels", "{ am: string; pm: string }", "—"],
+                  ["scrollToStep", "boolean", "false"],
                   ["disabled", "boolean", "false"],
                   ["size", '"sm" | "default" | "lg"', '"default"'],
                   ["name", "string", "—"],

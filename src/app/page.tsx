@@ -1,4 +1,5 @@
 import { InstallCommand, InteractiveDemo, VariantsDemo, LocaleDemo, ScrollToStepDemo, SizesDemo } from "./demo"
+import { WhySection } from "./features"
 
 const REGISTRY_URL = process.env.NEXT_PUBLIC_URL
   ? `${process.env.NEXT_PUBLIC_URL}/r/time-input.json`
@@ -42,6 +43,11 @@ export default function Page() {
             the native <code className="rounded bg-muted px-1 font-mono text-xs">type=&quot;time&quot;</code> can&apos;t do.
           </p>
         </div>
+
+        {/* Why */}
+        <Section title="Why time-input?">
+          <WhySection />
+        </Section>
 
         {/* Install */}
         <Section title="Install">

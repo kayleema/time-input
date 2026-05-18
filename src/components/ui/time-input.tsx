@@ -526,7 +526,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         />
         <input
           ref={hoursRef}
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder={placeholder ?? (format === "12h" ? "12" : "00")}
           min={format === "12h" ? 1 : 0}
@@ -543,7 +543,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         <span className={sepCls} aria-hidden="true">:</span>
         <input
           ref={minutesRef}
-          type="number"
+          type="text"
           inputMode="numeric"
           placeholder={placeholder ?? "00"}
           min={0}
@@ -563,7 +563,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
             <span className={sepCls} aria-hidden="true">:</span>
             <input
               ref={secondsRef}
-              type="number"
+              type="text"
               inputMode="numeric"
               placeholder={placeholder ?? "00"}
               min={0}

@@ -3,6 +3,8 @@
 import * as React from "react"
 import { Check, Copy } from "lucide-react"
 import { TimeInput } from "@/components/ui/time-input"
+import { useLocale } from "./locale-provider"
+import { strings } from "./i18n"
 
 export function InstallCommand({ url }: { url: string }) {
   const [copied, setCopied] = React.useState(false)
@@ -29,19 +31,21 @@ export function InstallCommand({ url }: { url: string }) {
 }
 
 export function InteractiveDemo() {
+  const { locale } = useLocale()
+  const s = strings[locale]
   const [value24, setValue24] = React.useState("14:05")
   const [value12, setValue12] = React.useState("14:30")
   const [valueSec, setValueSec] = React.useState("09:45:30")
 
   return (
     <div className="grid gap-8 sm:grid-cols-3">
-      <DemoCard label="24-hour" value={value24}>
+      <DemoCard label={s.demo24h} value={value24}>
         <TimeInput value={value24} onChange={setValue24} />
       </DemoCard>
-      <DemoCard label="12-hour" value={value12}>
+      <DemoCard label={s.demo12h} value={value12}>
         <TimeInput format="12h" value={value12} onChange={setValue12} />
       </DemoCard>
-      <DemoCard label="With seconds" value={valueSec}>
+      <DemoCard label={s.demoWithSeconds} value={valueSec}>
         <TimeInput showSeconds value={valueSec} onChange={setValueSec} />
       </DemoCard>
     </div>
@@ -57,6 +61,8 @@ function DemoCard({
   value: string
   children: React.ReactNode
 }) {
+  const { locale } = useLocale()
+  const s = strings[locale]
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -64,64 +70,66 @@ function DemoCard({
       </p>
       {children}
       <p className="font-mono text-xs text-muted-foreground">
-        value: <span className="text-foreground">{value || '""'}</span>
+        {s.demoValueLabel}: <span className="text-foreground">{value || '""'}</span>
       </p>
     </div>
   )
 }
 
 export function VariantsDemo() {
+  const { locale } = useLocale()
+  const s = strings[locale]
   return (
     <div className="flex flex-col gap-6">
-      <Row label="Default (24h)">
+      <Row label={s.variantDefault24h}>
         <TimeInput defaultValue="09:00" />
       </Row>
-      <Row label="12-hour">
+      <Row label={s.variantFormat12h}>
         <TimeInput format="12h" defaultValue="09:00" />
       </Row>
-      <Row label="With seconds">
+      <Row label={s.variantWithSeconds}>
         <TimeInput showSeconds defaultValue="09:00:00" />
       </Row>
-      <Row label="12h + seconds">
+      <Row label={s.variant12hSeconds}>
         <TimeInput format="12h" showSeconds defaultValue="09:00:00" />
       </Row>
-      <Row label="Custom placeholder">
+      <Row label={s.variantCustomPlaceholder}>
         <TimeInput placeholder="--" />
       </Row>
-      <Row label="Autofill minutes">
+      <Row label={s.variantAutofillMinutes}>
         <TimeInput autoFillMinutesOnBlur placeholder="--" />
       </Row>
-      <Row label="Round nearest">
+      <Row label={s.variantRoundNearest}>
         <TimeInput roundMinutesToNearest={5} defaultValue="09:03" />
       </Row>
-      <Row label="Round floor">
+      <Row label={s.variantRoundFloor}>
         <TimeInput
           roundMinutesToNearest={5}
           roundMinutesMode="floor"
           defaultValue="09:03"
         />
       </Row>
-      <Row label="Round ceiling">
+      <Row label={s.variantRoundCeil}>
         <TimeInput
           roundMinutesToNearest={5}
           roundMinutesMode="ceil"
           defaultValue="09:03"
         />
       </Row>
-      <Row label="Avoid day rollover">
+      <Row label={s.variantAvoidRollover}>
         <TimeInput
           roundMinutesToNearest={5}
           roundLastIntervalDown
           defaultValue="23:58"
         />
       </Row>
-      <Row label="Overflow hours (max 27)">
+      <Row label={s.variantOverflow27}>
         <TimeInput allowOverflowHours maxOverflowHours={27} defaultValue="27:00" />
       </Row>
-      <Row label="Allow 24:00 only">
+      <Row label={s.variantAllow24}>
         <TimeInput allowOverflowHours maxOverflowHours={24} defaultValue="24:00" />
       </Row>
-      <Row label="Disabled">
+      <Row label={s.variantDisabled}>
         <TimeInput disabled defaultValue="14:05" />
       </Row>
     </div>
@@ -129,6 +137,7 @@ export function VariantsDemo() {
 }
 
 export function LocaleDemo() {
+  const { locale } = useLocale()
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
@@ -155,33 +164,51 @@ export function LocaleDemo() {
           />
         </Row>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Pass a BCP 47 <code className="font-mono">locale</code> string to derive
-        labels via <code className="font-mono">Intl.DateTimeFormat</code>, or supply{" "}
-        <code className="font-mono">periodLabels</code> directly when your i18n library
-        already has the strings. Omitting both keeps{" "}
-        <code className="font-mono">AM / PM</code> and avoids any SSR mismatch.
-      </p>
+      {locale === "ja" ? (
+        <p className="text-xs text-muted-foreground">
+          BCP 47形式の <code className="font-mono">locale</code> 文字列を渡すと{" "}
+          <code className="font-mono">Intl.DateTimeFormat</code> 経由でラベルが自動導出されます。
+          i18nライブラリに文字列がある場合は <code className="font-mono">periodLabels</code>{" "}
+          で直接指定できます。どちらも省略した場合は{" "}
+          <code className="font-mono">AM / PM</code> が表示され、SSRとのミスマッチも発生しません。
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Pass a BCP 47 <code className="font-mono">locale</code> string to derive
+          labels via <code className="font-mono">Intl.DateTimeFormat</code>, or supply{" "}
+          <code className="font-mono">periodLabels</code> directly when your i18n library
+          already has the strings. Omitting both keeps{" "}
+          <code className="font-mono">AM / PM</code> and avoids any SSR mismatch.
+        </p>
+      )}
     </div>
   )
 }
 
 export function ScrollToStepDemo() {
+  const { locale } = useLocale()
+  const s = strings[locale]
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <Row label="Off (default)">
+        <Row label={s.scrollOff}>
           <TimeInput defaultValue="14:05" />
         </Row>
-        <Row label="On">
+        <Row label={s.scrollOn}>
           <TimeInput scrollToStep defaultValue="14:05" />
         </Row>
       </div>
-      <p className="text-xs text-muted-foreground">
-        With <code className="font-mono">scrollToStep</code>, click a segment to focus
-        it, then scroll to change its value. Disabled by default so scroll never fires
-        on hover and doesn&apos;t interfere with page scrolling.
-      </p>
+      {locale === "ja" ? (
+        <p className="text-xs text-muted-foreground">
+          <code className="font-mono">scrollToStep</code> を有効にすると、セグメントをクリックしてフォーカスした後、スクロールで値を変更できます。デフォルトでは無効になっており、ホバー中のスクロールやページスクロールとの干渉を防ぎます。
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          With <code className="font-mono">scrollToStep</code>, click a segment to focus
+          it, then scroll to change its value. Disabled by default so scroll never fires
+          on hover and doesn&apos;t interfere with page scrolling.
+        </p>
+      )}
     </div>
   )
 }

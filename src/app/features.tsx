@@ -28,6 +28,7 @@ const compData: [boolean | "system" | "varies", boolean | "system" | "varies", b
   [false, "varies", true],
   [false, false, true],
   [true, false, true],
+  [false, "varies", true],
 ]
 
 export function WhySection() {
@@ -105,6 +106,10 @@ export function WhySection() {
               <C>HH:mm:ss</C>{" "}
               の24時間形式です。フォーム・バリデーションライブラリ・サーバー側のハンドラーはAM/PMを解析することなく、一貫した文字列を受け取ります。
             </FeatureCard>
+
+            <FeatureCard title={s.featTestingTitle}>
+              23のテストグループにわたる117のテストが、すべての動作を網羅しています：入力の自動進行、ブラー時のパディング、丸め処理、オーバーフロー、CJK正規化、AM/PM切り替え、キーボード操作、制御同期、スクロール操作。安心してコントリビューションやアップグレードが行えます。
+            </FeatureCard>
           </>
         ) : (
           <>
@@ -147,6 +152,12 @@ export function WhySection() {
               <C>HH:mm:ss</C> in 24-hour format, regardless of whether 12h display is active. Forms,
               validation libraries, and server handlers receive a predictable string and never need to
               parse AM/PM.
+            </FeatureCard>
+
+            <FeatureCard title={s.featTestingTitle}>
+              117 tests across 23 describe blocks cover every behavior: auto-advance typing, blur
+              padding, rounding, overflow, CJK normalization, AM/PM toggling, keyboard navigation,
+              controlled sync, and scroll-to-step. Contributions and upgrades stay safe.
             </FeatureCard>
           </>
         )}

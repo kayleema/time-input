@@ -60,6 +60,7 @@ export type Strings = {
   featOverflowTitle: string
   featShadcnTitle: string
   feat24hOutputTitle: string
+  featTestingTitle: string
 
   // CJK section heading
   cjkHeading: string
@@ -131,6 +132,7 @@ const en: Strings = {
   featOverflowTitle: "Overflow hours",
   featShadcnTitle: "shadcn/ui native",
   feat24hOutputTitle: "Consistent 24h output",
+  featTestingTitle: "117 tests, 0 surprises",
 
   cjkHeading: "How CJK normalization works",
 
@@ -150,6 +152,7 @@ const en: Strings = {
     "Consistent 24h output",
     "Single-file install",
     "No extra dependencies",
+    "Test coverage",
   ],
 }
 
@@ -210,6 +213,7 @@ const ja: Strings = {
   featOverflowTitle: "オーバーフロー時間",
   featShadcnTitle: "shadcn/uiネイティブ",
   feat24hOutputTitle: "一貫した24時間形式の出力",
+  featTestingTitle: "117テスト、0サプライズ",
 
   cjkHeading: "CJK正規化の仕組み",
 
@@ -229,6 +233,7 @@ const ja: Strings = {
     "一貫した24時間出力",
     "単一ファイルインストール",
     "追加依存なし",
+    "テストカバレッジ",
   ],
 }
 

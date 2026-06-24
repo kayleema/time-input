@@ -1,23 +1,21 @@
-"use client"
-
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const timeInputVariants = cva(
-  "flex items-center rounded-md border border-input bg-background text-sm ring-offset-background transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-  {
-    variants: {
-      size: {
-        sm: "h-9 px-2.5",
-        default: "h-10 px-3",
-        lg: "h-11 px-3 text-base",
+    "flex items-center rounded-md border border-input bg-background ring-offset-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 aria-invalid:border-destructive [&_input]:placeholder:text-foreground text-foreground",
+    {
+      variants: {
+        size: {
+          sm: "h-9 px-2.5 text-sm",
+          default: "h-9 px-3 py-1 text-base",
+          lg: "h-11 px-3 text-base",
+        },
       },
-    },
-    defaultVariants: {
-      size: "default",
-    },
-  }
+      defaultVariants: {
+        size: "default",
+      },
+    }
 )
 
 type Period = "AM" | "PM"
@@ -86,14 +84,14 @@ function getDigits(raw: string) {
 }
 
 export interface TimeInputProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange" | "defaultValue">,
-    VariantProps<typeof timeInputVariants> {
+    extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange" | "defaultValue" | "onBlur">, VariantProps<typeof timeInputVariants> {
   /** Controlled value in 24-hour format: "HH:mm" or "HH:mm:ss" */
   value?: string
   /** Uncontrolled initial value in 24-hour format */
   defaultValue?: string
   /** Called with the serialized 24-hour value, or "" while incomplete */
   onChange?: (value: string) => void
+  onBlur?: (value: string) => void
   /** Display format. Output value is always 24-hour regardless of this prop. */
   format?: "12h" | "24h"
   /** Show the seconds segment */
@@ -132,300 +130,305 @@ export interface TimeInputProps
   disabled?: boolean
   /** Name passed to the hidden input for native form submission */
   name?: string
+  minutesAriaLabel?: string
 }
 
 const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
-  (
-    {
-      className,
-      size,
-      value,
-      defaultValue,
-      onChange,
-      format = "24h",
-      showSeconds = false,
-      placeholder,
-      autoFillMinutesOnBlur = false,
-      roundMinutesToNearest,
-      roundMinutesMode = "nearest",
-      roundLastIntervalDown = false,
-      allowOverflowHours = false,
-      maxOverflowHours = 99,
-      scrollToStep = false,
-      locale,
-      periodLabels,
-      disabled = false,
-      name,
-      id,
-      onBlur,
-      onPointerDown,
-      ...props
-    },
-    ref
-  ) => {
-    const [seg, setSeg] = React.useState<Segments>(() =>
-      parse(value ?? defaultValue, format)
-    )
-    const segRef = React.useRef(seg)
-    const lastEmitted = React.useRef(serialize(seg, format, showSeconds))
-    const prevFormat = React.useRef(format)
+    (
+        {
+          className,
+          size,
+          value,
+          defaultValue,
+          onChange,
+          format = "24h",
+          showSeconds = false,
+          placeholder,
+          autoFillMinutesOnBlur = false,
+          roundMinutesToNearest,
+          roundMinutesMode = "nearest",
+          roundLastIntervalDown = false,
+          allowOverflowHours = false,
+          maxOverflowHours = 99,
+          scrollToStep = false,
+          locale,
+          periodLabels,
+          disabled = false,
+          name,
+          id,
+          onBlur,
+          onPointerDown,
+          minutesAriaLabel,
+          ...props
+        },
+        ref
+    ) => {
+      const [seg, setSeg] = React.useState<Segments>(() => parse(value ?? defaultValue, format))
+      const segRef = React.useRef(seg)
+      const lastEmitted = React.useRef(serialize(seg, format, showSeconds))
+      const prevFormat = React.useRef(format)
 
-    const periods = React.useMemo<{ am: string; pm: string }>(() => {
-      if (periodLabels) return periodLabels
-      if (!locale) return { am: "AM", pm: "PM" }
-      try {
-        const fmt = new Intl.DateTimeFormat(locale, { hour: "numeric", hour12: true })
-        const am = fmt.formatToParts(new Date(2000, 0, 1, 6)).find((p) => p.type === "dayPeriod")?.value ?? "AM"
-        const pm = fmt.formatToParts(new Date(2000, 0, 1, 18)).find((p) => p.type === "dayPeriod")?.value ?? "PM"
-        return { am, pm }
-      } catch {
-        return { am: "AM", pm: "PM" }
-      }
-    }, [locale, periodLabels])
+      const periods = React.useMemo<{ am: string; pm: string }>(() => {
+        if (periodLabels) return periodLabels
+        if (!locale) return { am: "AM", pm: "PM" }
+        try {
+          const fmt = new Intl.DateTimeFormat(locale, { hour: "numeric", hour12: true })
+          const am = fmt.formatToParts(new Date(2000, 0, 1, 6)).find((p) => p.type === "dayPeriod")?.value ?? "AM"
+          const pm = fmt.formatToParts(new Date(2000, 0, 1, 18)).find((p) => p.type === "dayPeriod")?.value ?? "PM"
+          return { am, pm }
+        } catch {
+          return { am: "AM", pm: "PM" }
+        }
+      }, [locale, periodLabels])
 
-    React.useEffect(() => {
-      const formatChanged = prevFormat.current !== format
-      prevFormat.current = format
-      if (value !== undefined && (value !== lastEmitted.current || formatChanged)) {
-        const next = parse(value, format)
+      React.useEffect(() => {
+        const formatChanged = prevFormat.current !== format
+        prevFormat.current = format
+        if (value !== undefined && (value !== lastEmitted.current || formatChanged)) {
+          const next = parse(value, format)
+          segRef.current = next
+          setSeg(next)
+        }
+      }, [value, format])
+
+      const hoursRef = React.useRef<HTMLInputElement>(null)
+      const minutesRef = React.useRef<HTMLInputElement>(null)
+      const secondsRef = React.useRef<HTMLInputElement>(null)
+      const periodRef = React.useRef<HTMLButtonElement>(null)
+
+      // Stable refs so the wheel listener always sees the latest values without
+      // being re-registered every render.
+      const scrollToStepRef = React.useRef(scrollToStep)
+      const stepRef = React.useRef(step)
+      scrollToStepRef.current = scrollToStep
+      stepRef.current = step
+
+      React.useEffect(() => {
+        type SegField = "hours" | "minutes" | "seconds"
+        const inputs: [React.RefObject<HTMLInputElement | null>, SegField][] = [
+          [hoursRef, "hours"],
+          [minutesRef, "minutes"],
+        ]
+        if (showSeconds) inputs.push([secondsRef, "seconds"])
+
+        const removals: (() => void)[] = []
+        for (const [ref, field] of inputs) {
+          const el = ref.current
+          if (!el) continue
+          const fn = (e: WheelEvent) => {
+            // Always prevent the browser's native number-input scroll increment,
+            // which fires even without focus in Chrome on macOS.
+            e.preventDefault()
+            if (scrollToStepRef.current && document.activeElement === el) {
+              stepRef.current(field, e.deltaY < 0 ? 1 : -1)
+            }
+          }
+          el.addEventListener("wheel", fn, { passive: false })
+          removals.push(() => el.removeEventListener("wheel", fn))
+        }
+        return () => removals.forEach((fn) => fn())
+      }, [showSeconds])
+
+      const overflowHourMax = Number.isFinite(maxOverflowHours) ? Math.max(23, Math.min(99, Math.round(maxOverflowHours))) : 99
+      const hourMax = format === "24h" && allowOverflowHours ? overflowHourMax : format === "12h" ? 12 : 23
+
+      function commit(patch: Partial<Segments>) {
+        const next = { ...segRef.current, ...patch }
         segRef.current = next
         setSeg(next)
+        const emitted = serialize(next, format, showSeconds)
+        lastEmitted.current = emitted
+        onChange?.(emitted)
       }
-    }, [value, format])
 
-    const hoursRef = React.useRef<HTMLInputElement>(null)
-    const minutesRef = React.useRef<HTMLInputElement>(null)
-    const secondsRef = React.useRef<HTMLInputElement>(null)
-    const periodRef = React.useRef<HTMLButtonElement>(null)
+      function isOverflowMaxHour(seg: Segments) {
+        if (format !== "24h" || !allowOverflowHours) return false
 
-    // Stable refs so the wheel listener always sees the latest values without
-    // being re-registered every render.
-    const scrollToStepRef = React.useRef(scrollToStep)
-    const stepRef = React.useRef(step)
-    scrollToStepRef.current = scrollToStep
-    stepRef.current = step
+        const hour = parseInt(seg.hours || "", 10)
+        return !isNaN(hour) && hour >= hourMax
+      }
 
-    React.useEffect(() => {
-      type SegField = "hours" | "minutes" | "seconds"
-      const inputs: [React.RefObject<HTMLInputElement | null>, SegField][] = [
-        [hoursRef, "hours"],
-        [minutesRef, "minutes"],
-      ]
-      if (showSeconds) inputs.push([secondsRef, "seconds"])
+      function maxTimeBoundaryPatch(seg: Segments): Partial<Segments> | null {
+        if (!isOverflowMaxHour(seg)) return null
 
-      const removals: (() => void)[] = []
-      for (const [ref, field] of inputs) {
-        const el = ref.current
-        if (!el) continue
-        const fn = (e: WheelEvent) => {
-          // Always prevent the browser's native number-input scroll increment,
-          // which fires even without focus in Chrome on macOS.
-          e.preventDefault()
-          if (scrollToStepRef.current && document.activeElement === el) {
-            stepRef.current(field, e.deltaY < 0 ? 1 : -1)
+        const patch: Partial<Segments> = {}
+        if (seg.minutes !== "" && seg.minutes !== "00") patch.minutes = "00"
+        if (seg.seconds !== "" && seg.seconds !== "00") patch.seconds = "00"
+
+        return Object.keys(patch).length > 0 ? patch : null
+      }
+
+      function handleHours(e: React.ChangeEvent<HTMLInputElement>) {
+        let digits = getDigits(e.target.value)
+        if (digits.length === 2) {
+          digits = String(Math.min(parseInt(digits, 10), hourMax)).padStart(2, "0")
+        }
+        const next = { ...segRef.current, hours: digits }
+        commit({ hours: digits, ...maxTimeBoundaryPatch(next) })
+
+        const shouldAutoAdvance =
+            digits.length === 2 ||
+            (format === "12h" && digits.length === 1 && parseInt(digits, 10) > 1) ||
+            (format === "24h" && !allowOverflowHours && digits.length === 1 && parseInt(digits, 10) > 2)
+        if (shouldAutoAdvance) {
+          minutesRef.current?.focus()
+          minutesRef.current?.select()
+        }
+      }
+
+      function handleMinutes(e: React.ChangeEvent<HTMLInputElement>) {
+        let digits = getDigits(e.target.value)
+        const max = isOverflowMaxHour(segRef.current) ? 0 : 59
+        if (digits.length > 0 && max === 0) {
+          digits = "00"
+        } else if (digits.length === 2) {
+          digits = String(Math.min(parseInt(digits, 10), max)).padStart(2, "0")
+        }
+        commit({ minutes: digits })
+
+        const advance = digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
+        if (advance) {
+          if (showSeconds) {
+            secondsRef.current?.focus()
+            secondsRef.current?.select()
+          } else if (format === "12h") {
+            periodRef.current?.focus()
           }
         }
-        el.addEventListener("wheel", fn, { passive: false })
-        removals.push(() => el.removeEventListener("wheel", fn))
       }
-      return () => removals.forEach((fn) => fn())
-    }, [showSeconds])
 
-    const overflowHourMax = Number.isFinite(maxOverflowHours)
-      ? Math.max(23, Math.min(99, Math.round(maxOverflowHours)))
-      : 99
-    const hourMax =
-      format === "24h" && allowOverflowHours
-        ? overflowHourMax
-        : format === "12h"
-          ? 12
-          : 23
+      function handleSeconds(e: React.ChangeEvent<HTMLInputElement>) {
+        let digits = getDigits(e.target.value)
+        const max = isOverflowMaxHour(segRef.current) ? 0 : 59
+        if (digits.length > 0 && max === 0) {
+          digits = "00"
+        } else if (digits.length === 2) {
+          digits = String(Math.min(parseInt(digits, 10), max)).padStart(2, "0")
+        }
+        commit({ seconds: digits })
 
-    function commit(patch: Partial<Segments>) {
-      const next = { ...segRef.current, ...patch }
-      segRef.current = next
-      setSeg(next)
-      const emitted = serialize(next, format, showSeconds)
-      lastEmitted.current = emitted
-      onChange?.(emitted)
-    }
-
-    function isOverflowMaxHour(seg: Segments) {
-      if (format !== "24h" || !allowOverflowHours) return false
-
-      const hour = parseInt(seg.hours || "", 10)
-      return !isNaN(hour) && hour >= hourMax
-    }
-
-    function maxTimeBoundaryPatch(seg: Segments): Partial<Segments> | null {
-      if (!isOverflowMaxHour(seg)) return null
-
-      const patch: Partial<Segments> = {}
-      if (seg.minutes !== "" && seg.minutes !== "00") patch.minutes = "00"
-      if (seg.seconds !== "" && seg.seconds !== "00") patch.seconds = "00"
-
-      return Object.keys(patch).length > 0 ? patch : null
-    }
-
-    function handleHours(e: React.ChangeEvent<HTMLInputElement>) {
-      let digits = getDigits(e.target.value)
-      if (digits.length === 2) {
-        digits = String(Math.min(parseInt(digits, 10), hourMax)).padStart(2, "0")
-      }
-      const next = { ...segRef.current, hours: digits }
-      commit({ hours: digits, ...maxTimeBoundaryPatch(next) })
-
-      const shouldAutoAdvance =
-        digits.length === 2 ||
-        (format === "12h" && digits.length === 1 && parseInt(digits, 10) > 1) ||
-        (format === "24h" &&
-          !allowOverflowHours &&
-          digits.length === 1 &&
-          parseInt(digits, 10) > 2)
-      if (shouldAutoAdvance) {
-        minutesRef.current?.focus()
-        minutesRef.current?.select()
-      }
-    }
-
-    function handleMinutes(e: React.ChangeEvent<HTMLInputElement>) {
-      let digits = getDigits(e.target.value)
-      const max = isOverflowMaxHour(segRef.current) ? 0 : 59
-      if (digits.length > 0 && max === 0) {
-        digits = "00"
-      } else if (digits.length === 2) {
-        digits = String(Math.min(parseInt(digits, 10), max)).padStart(2, "0")
-      }
-      commit({ minutes: digits })
-
-      const advance =
-        digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
-      if (advance) {
-        if (showSeconds) {
-          secondsRef.current?.focus()
-          secondsRef.current?.select()
-        } else if (format === "12h") {
+        const advance = digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
+        if (advance && format === "12h") {
           periodRef.current?.focus()
         }
       }
-    }
 
-    function handleSeconds(e: React.ChangeEvent<HTMLInputElement>) {
-      let digits = getDigits(e.target.value)
-      const max = isOverflowMaxHour(segRef.current) ? 0 : 59
-      if (digits.length > 0 && max === 0) {
-        digits = "00"
-      } else if (digits.length === 2) {
-        digits = String(Math.min(parseInt(digits, 10), max)).padStart(2, "0")
-      }
-      commit({ seconds: digits })
+      function pad(field: "hours" | "minutes" | "seconds") {
+        const val = segRef.current[field]
+        if (!val) return
+        const n = parseInt(val, 10)
+        if (isNaN(n)) return
 
-      const advance =
-        digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
-      if (advance && format === "12h") {
-        periodRef.current?.focus()
-      }
-    }
-
-    function pad(field: "hours" | "minutes" | "seconds") {
-      const val = segRef.current[field]
-      if (!val) return
-      const n = parseInt(val, 10)
-      if (isNaN(n)) return
-
-      let clamped: number
-      if (field === "hours") {
-        const min = format === "12h" ? 1 : 0
-        clamped = Math.max(min, Math.min(hourMax, n))
-      } else {
-        const max = isOverflowMaxHour(segRef.current) ? 0 : 59
-        clamped = Math.min(max, Math.max(0, n))
-      }
-      commit({ [field]: String(clamped).padStart(2, "0") })
-    }
-
-    function step(field: "hours" | "minutes" | "seconds", dir: 1 | -1) {
-      const val = parseInt(segRef.current[field] || "0", 10)
-      let next: number
-      if (field === "hours") {
-        const min = format === "12h" ? 1 : 0
-        next = ((val - min + dir + (hourMax - min + 1)) % (hourMax - min + 1)) + min
-      } else {
-        next = isOverflowMaxHour(segRef.current) ? 0 : (val + dir + 60) % 60
-      }
-      commit({ [field]: String(next).padStart(2, "0") })
-    }
-
-    function handleKeyDown(
-      e: React.KeyboardEvent<HTMLInputElement>,
-      field: "hours" | "minutes" | "seconds"
-    ) {
-      if (e.key === "ArrowUp") { e.preventDefault(); step(field, 1) }
-      if (e.key === "ArrowDown") { e.preventDefault(); step(field, -1) }
-      if (e.key === "Backspace" && !segRef.current[field]) {
-        if (field === "minutes") hoursRef.current?.focus()
-        if (field === "seconds") minutesRef.current?.focus()
-      }
-    }
-
-    function togglePeriod() {
-      commit({ period: segRef.current.period === "AM" ? "PM" : "AM" })
-    }
-
-    function getMinuteRoundingInterval() {
-      if (roundMinutesToNearest === undefined) return null
-      if (!Number.isFinite(roundMinutesToNearest)) return null
-
-      const interval = Math.round(roundMinutesToNearest)
-      if (interval <= 1) return null
-
-      return Math.min(interval, 60)
-    }
-
-    function incrementHour(seg: Segments): Partial<Segments> {
-      const hour = parseInt(seg.hours || "0", 10)
-      if (format === "24h") {
-        if (allowOverflowHours && hour < hourMax) {
-          return { hours: String(hour + 1).padStart(2, "0") }
+        let clamped: number
+        if (field === "hours") {
+          const min = format === "12h" ? 1 : 0
+          clamped = Math.max(min, Math.min(hourMax, n))
+        } else {
+          const max = isOverflowMaxHour(segRef.current) ? 0 : 59
+          clamped = Math.min(max, Math.max(0, n))
         }
-
-        return { hours: String((hour + 1) % 24).padStart(2, "0") }
+        commit({ [field]: String(clamped).padStart(2, "0") })
       }
 
-      if (hour === 11) {
-        return {
-          hours: "12",
-          period: seg.period === "AM" ? "PM" : "AM",
+      function step(field: "hours" | "minutes" | "seconds", dir: 1 | -1) {
+        const val = parseInt(segRef.current[field] || "0", 10)
+        let next: number
+        if (field === "hours") {
+          const min = format === "12h" ? 1 : 0
+          next = ((val - min + dir + (hourMax - min + 1)) % (hourMax - min + 1)) + min
+        } else {
+          next = isOverflowMaxHour(segRef.current) ? 0 : (val + dir + 60) % 60
+        }
+        commit({ [field]: String(next).padStart(2, "0") })
+      }
+
+      function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>, field: "hours" | "minutes" | "seconds") {
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          step(field, 1)
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault()
+          step(field, -1)
+        }
+        if (e.key === "Backspace" && !segRef.current[field]) {
+          if (field === "minutes") hoursRef.current?.focus()
+          if (field === "seconds") minutesRef.current?.focus()
         }
       }
 
-      return { hours: String(hour === 12 ? 1 : hour + 1).padStart(2, "0") }
-    }
+      function togglePeriod() {
+        commit({ period: segRef.current.period === "AM" ? "PM" : "AM" })
+      }
 
-    function isLastHourOfDay(seg: Segments) {
-      const hour = parseInt(seg.hours || "0", 10)
-      if (isNaN(hour)) return false
+      function getMinuteRoundingInterval() {
+        if (roundMinutesToNearest === undefined) return null
+        if (!Number.isFinite(roundMinutesToNearest)) return null
 
-      return format === "24h" ? hour === 23 : hour === 11 && seg.period === "PM"
-    }
+        const interval = Math.round(roundMinutesToNearest)
+        if (interval <= 1) return null
 
-    function roundMinutesPatch(seg: Segments): Partial<Segments> | null {
-      const interval = getMinuteRoundingInterval()
-      if (interval === null || !seg.hours || !seg.minutes) return null
+        return Math.min(interval, 60)
+      }
 
-      const minutes = parseInt(seg.minutes, 10)
-      if (isNaN(minutes)) return null
+      function incrementHour(seg: Segments): Partial<Segments> {
+        const hour = parseInt(seg.hours || "0", 10)
+        if (format === "24h") {
+          if (allowOverflowHours && hour < hourMax) {
+            return { hours: String(hour + 1).padStart(2, "0") }
+          }
 
-      const quotient = minutes / interval
-      const rounded =
-        roundMinutesMode === "floor"
-          ? Math.floor(quotient) * interval
-          : roundMinutesMode === "ceil"
-            ? Math.ceil(quotient) * interval
-            : Math.round(quotient) * interval
-      if (rounded >= 60) {
-        if (format === "24h" && allowOverflowHours) {
-          if (parseInt(seg.hours, 10) >= hourMax) {
+          return { hours: String((hour + 1) % 24).padStart(2, "0") }
+        }
+
+        if (hour === 11) {
+          return {
+            hours: "12",
+            period: seg.period === "AM" ? "PM" : "AM",
+          }
+        }
+
+        return { hours: String(hour === 12 ? 1 : hour + 1).padStart(2, "0") }
+      }
+
+      function isLastHourOfDay(seg: Segments) {
+        const hour = parseInt(seg.hours || "0", 10)
+        if (isNaN(hour)) return false
+
+        return format === "24h" ? hour === 23 : hour === 11 && seg.period === "PM"
+      }
+
+      function roundMinutesPatch(seg: Segments): Partial<Segments> | null {
+        const interval = getMinuteRoundingInterval()
+        if (interval === null || !seg.hours || !seg.minutes) return null
+
+        const minutes = parseInt(seg.minutes, 10)
+        if (isNaN(minutes)) return null
+
+        const quotient = minutes / interval
+        const rounded =
+            roundMinutesMode === "floor"
+                ? Math.floor(quotient) * interval
+                : roundMinutesMode === "ceil"
+                    ? Math.ceil(quotient) * interval
+                    : Math.round(quotient) * interval
+        if (rounded >= 60) {
+          if (format === "24h" && allowOverflowHours) {
+            if (parseInt(seg.hours, 10) >= hourMax) {
+              const floored = Math.floor(quotient) * interval
+              const flooredMinutes = String(Math.min(floored, 59)).padStart(2, "0")
+              if (flooredMinutes === seg.minutes) return null
+
+              return { minutes: flooredMinutes }
+            }
+
+            return {
+              ...incrementHour(seg),
+              minutes: "00",
+            }
+          }
+
+          if (roundLastIntervalDown && isLastHourOfDay(seg)) {
             const floored = Math.floor(quotient) * interval
             const flooredMinutes = String(Math.min(floored, 59)).padStart(2, "0")
             if (flooredMinutes === seg.minutes) return null
@@ -439,168 +442,152 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
           }
         }
 
-        if (roundLastIntervalDown && isLastHourOfDay(seg)) {
-          const floored = Math.floor(quotient) * interval
-          const flooredMinutes = String(Math.min(floored, 59)).padStart(2, "0")
-          if (flooredMinutes === seg.minutes) return null
+        const nextMinutes = String(rounded).padStart(2, "0")
+        if (nextMinutes === seg.minutes) return null
 
-          return { minutes: flooredMinutes }
+        return { minutes: nextMinutes }
+      }
+
+      function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
+        if (disabled || e.currentTarget.contains(e.relatedTarget)) {
+          onBlur?.(lastEmitted.current)
+          return
         }
 
-        return {
-          ...incrementHour(seg),
-          minutes: "00",
+        const current = segRef.current
+        const next = {
+          ...current,
+          ...(autoFillMinutesOnBlur && current.hours && current.minutes === "" ? { minutes: "00" } : {}),
         }
+        Object.assign(next, maxTimeBoundaryPatch(next))
+        const roundedPatch = roundMinutesPatch(next)
+        const patch = {
+          ...(next.minutes !== current.minutes ? { minutes: next.minutes } : {}),
+          ...roundedPatch,
+        }
+
+        if (Object.keys(patch).length > 0) {
+          commit(patch)
+        }
+        onBlur?.(lastEmitted.current)
       }
 
-      const nextMinutes = String(rounded).padStart(2, "0")
-      if (nextMinutes === seg.minutes) return null
+      function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+        onPointerDown?.(e)
+        if (disabled || e.defaultPrevented) return
 
-      return { minutes: nextMinutes }
-    }
+        const target = e.target as HTMLElement
+        if (target.closest("input, button")) return
 
-    function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
-      onBlur?.(e)
-      if (
-        disabled ||
-        e.currentTarget.contains(e.relatedTarget)
-      ) {
-        return
+        e.preventDefault()
+        hoursRef.current?.focus()
       }
 
-      const current = segRef.current
-      const next = {
-        ...current,
-        ...(autoFillMinutesOnBlur && current.hours && current.minutes === ""
-          ? { minutes: "00" }
-          : {}),
-      }
-      Object.assign(next, maxTimeBoundaryPatch(next))
-      const roundedPatch = roundMinutesPatch(next)
-      const patch = {
-        ...(next.minutes !== current.minutes ? { minutes: next.minutes } : {}),
-        ...roundedPatch,
-      }
+      const segCls =
+          "w-6 bg-transparent text-center tabular-nums outline-none disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      const sepCls = "select-none text-foreground"
 
-      if (Object.keys(patch).length > 0) {
-        commit(patch)
-      }
-    }
-
-    function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-      onPointerDown?.(e)
-      if (disabled || e.defaultPrevented) return
-
-      const target = e.target as HTMLElement
-      if (target.closest("input, button")) return
-
-      e.preventDefault()
-      hoursRef.current?.focus()
-    }
-
-    const segCls =
-      "w-8 bg-transparent text-center tabular-nums outline-none disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-    const sepCls = "select-none px-px text-muted-foreground"
-
-    return (
-      <div
-        role="group"
-        aria-label="Time input"
-        onBlur={handleBlur}
-        onPointerDown={handlePointerDown}
-        className={cn(
-          timeInputVariants({ size }),
-          !disabled && "cursor-text",
-          disabled && "cursor-not-allowed opacity-50",
-          className
-        )}
-        {...props}
-      >
-        <input
-          ref={ref}
-          type="hidden"
-          name={name}
-          id={id}
-          value={serialize(seg, format, showSeconds)}
-          disabled={disabled}
-        />
-        <input
-          ref={hoursRef}
-          type="text"
-          inputMode="numeric"
-          placeholder={placeholder ?? (format === "12h" ? "12" : "00")}
-          min={format === "12h" ? 1 : 0}
-          max={hourMax}
-          disabled={disabled}
-          value={seg.hours}
-          onChange={handleHours}
-          onBlur={() => pad("hours")}
-          onKeyDown={(e) => handleKeyDown(e, "hours")}
-          onFocus={(e) => e.target.select()}
-          className={segCls}
-          aria-label="Hours"
-        />
-        <span className={sepCls} aria-hidden="true">:</span>
-        <input
-          ref={minutesRef}
-          type="text"
-          inputMode="numeric"
-          placeholder={placeholder ?? "00"}
-          min={0}
-          max={59}
-          step={roundMinutesToNearest ?? 1}
-          disabled={disabled}
-          value={seg.minutes}
-          onChange={handleMinutes}
-          onBlur={() => pad("minutes")}
-          onKeyDown={(e) => handleKeyDown(e, "minutes")}
-          onFocus={(e) => e.target.select()}
-          className={segCls}
-          aria-label="Minutes"
-        />
-        {showSeconds && (
-          <>
-            <span className={sepCls} aria-hidden="true">:</span>
-            <input
-              ref={secondsRef}
-              type="text"
-              inputMode="numeric"
-              placeholder={placeholder ?? "00"}
-              min={0}
-              max={59}
-              step={roundMinutesToNearest ?? 1}
-              disabled={disabled}
-              value={seg.seconds}
-              onChange={handleSeconds}
-              onBlur={() => pad("seconds")}
-              onKeyDown={(e) => handleKeyDown(e, "seconds")}
-              onFocus={(e) => e.target.select()}
-              className={segCls}
-              aria-label="Seconds"
-            />
-          </>
-        )}
-        {format === "12h" && (
-          <button
-            ref={periodRef}
-            type="button"
-            disabled={disabled}
-            onClick={togglePeriod}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === " ") {
-                e.preventDefault()
-                togglePeriod()
-              }
-            }}
-            className="ml-1.5 min-w-[2.25rem] rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none"
-            aria-label={`Toggle period, currently ${seg.period === "AM" ? periods.am : periods.pm}`}
+      return (
+          <div
+              role="group"
+              aria-label="Time input"
+              onBlur={handleBlur}
+              onPointerDown={handlePointerDown}
+              className={cn(timeInputVariants({ size }), !disabled && "cursor-text", disabled && "cursor-not-allowed opacity-50", className)}
+              {...props}
           >
-            {seg.period === "AM" ? periods.am : periods.pm}
-          </button>
-        )}
-      </div>
-    )
-  }
+            <input ref={ref} type="hidden" name={name} value={serialize(seg, format, showSeconds)} disabled={disabled} />
+            <input
+                id={id}
+                ref={hoursRef}
+                type="text"
+                inputMode="numeric"
+                placeholder={placeholder ?? (format === "12h" ? "12" : "00")}
+                min={format === "12h" ? 1 : 0}
+                max={hourMax}
+                disabled={disabled}
+                value={seg.hours}
+                onChange={handleHours}
+                onBlur={() => {
+                  pad("hours")
+                  onBlur?.(lastEmitted.current)
+                }}
+                onKeyDown={(e) => handleKeyDown(e, "hours")}
+                onFocus={(e) => e.target.select()}
+                className={segCls}
+                aria-label="Hours"
+            />
+            <span className={sepCls} aria-hidden="true">
+                    :
+                </span>
+            <input
+                ref={minutesRef}
+                type="text"
+                inputMode="numeric"
+                placeholder={placeholder ?? "00"}
+                min={0}
+                max={59}
+                step={roundMinutesToNearest ?? 1}
+                disabled={disabled}
+                value={seg.minutes}
+                onChange={handleMinutes}
+                onBlur={() => {
+                  pad("minutes")
+                  onBlur?.(lastEmitted.current)
+                }}
+                onKeyDown={(e) => handleKeyDown(e, "minutes")}
+                onFocus={(e) => e.target.select()}
+                className={segCls}
+                aria-label={minutesAriaLabel}
+            />
+            {showSeconds && (
+                <>
+                        <span className={sepCls} aria-hidden="true">
+                            :
+                        </span>
+                  <input
+                      ref={secondsRef}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder={placeholder ?? "00"}
+                      min={0}
+                      max={59}
+                      step={roundMinutesToNearest ?? 1}
+                      disabled={disabled}
+                      value={seg.seconds}
+                      onChange={handleSeconds}
+                      onBlur={() => {
+                        pad("seconds")
+                        onBlur?.(lastEmitted.current)
+                      }}
+                      onKeyDown={(e) => handleKeyDown(e, "seconds")}
+                      onFocus={(e) => e.target.select()}
+                      className={segCls}
+                      aria-label="Seconds"
+                  />
+                </>
+            )}
+            {format === "12h" && (
+                <button
+                    ref={periodRef}
+                    type="button"
+                    disabled={disabled}
+                    onClick={togglePeriod}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === " ") {
+                        e.preventDefault()
+                        togglePeriod()
+                      }
+                    }}
+                    className="ml-1.5 min-w-[2.25rem] rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none"
+                    aria-label={`Toggle period, currently ${seg.period === "AM" ? periods.am : periods.pm}`}
+                >
+                  {seg.period === "AM" ? periods.am : periods.pm}
+                </button>
+            )}
+          </div>
+      )
+    }
 )
 
 TimeInput.displayName = "TimeInput"

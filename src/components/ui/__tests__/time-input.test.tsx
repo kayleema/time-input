@@ -11,7 +11,8 @@ function getHours() {
   return screen.getByRole("textbox", { name: "Hours" }) as HTMLInputElement
 }
 function getMinutes() {
-  return screen.getByRole("textbox", { name: "Minutes" }) as HTMLInputElement
+  // minutes no longer has a default aria-label (use minutesAriaLabel prop to set one)
+  return screen.getAllByRole("textbox")[1] as HTMLInputElement
 }
 function getSeconds() {
   return screen.getByRole("textbox", { name: "Seconds" }) as HTMLInputElement
@@ -69,6 +70,17 @@ describe("Rendering", () => {
   it("forwards name to hidden input", () => {
     const { container } = render(<TimeInput name="departure" defaultValue="09:00" />)
     expect(getHidden(container)).toHaveAttribute("name", "departure")
+  })
+
+  it("id is forwarded to the hours input, not the hidden input", () => {
+    const { container } = render(<TimeInput id="my-time" />)
+    expect(getHours()).toHaveAttribute("id", "my-time")
+    expect(getHidden(container)).not.toHaveAttribute("id")
+  })
+
+  it("minutesAriaLabel sets aria-label on the minutes input", () => {
+    render(<TimeInput minutesAriaLabel="Duration minutes" />)
+    expect(screen.getByRole("textbox", { name: "Duration minutes" })).toBeInTheDocument()
   })
 
   it("size sm adds h-9 class", () => {
@@ -374,6 +386,37 @@ describe("Blur padding", () => {
     fireEvent.blur(getHours())
     // 0 → clamped to 1
     expect(onChange).toHaveBeenLastCalledWith("01:00")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// onBlur callback
+// ---------------------------------------------------------------------------
+
+describe("onBlur callback", () => {
+  it("receives serialized value string (not an event)", () => {
+    const onBlur = vi.fn()
+    render(<TimeInput defaultValue="09:30" onBlur={onBlur} />)
+    fireEvent.blur(getHours())
+    expect(onBlur).toHaveBeenCalledWith("09:30")
+    expect(typeof onBlur.mock.calls[0][0]).toBe("string")
+  })
+
+  it("receives empty string when time is incomplete", () => {
+    const onBlur = vi.fn()
+    render(<TimeInput onBlur={onBlur} />)
+    fireEvent.change(getHours(), { target: { value: "9" } })
+    fireEvent.blur(getHours())
+    expect(onBlur).toHaveBeenCalledWith("")
+  })
+
+  it("receives updated value after blur padding commits", () => {
+    const onBlur = vi.fn()
+    render(<TimeInput defaultValue="09:30" onBlur={onBlur} />)
+    // type a single digit — pad() will commit "03" before onBlur fires
+    fireEvent.change(getHours(), { target: { value: "3" } })
+    fireEvent.blur(getHours())
+    expect(onBlur).toHaveBeenCalledWith("03:30")
   })
 })
 

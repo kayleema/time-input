@@ -200,6 +200,16 @@ export function PageContent({ usageBlock }: { usageBlock: React.ReactNode }) {
             The component emits an empty string while either hours or minutes is unfilled.
           </p>
         )}
+        {locale === "ja" ? (
+          <p className="text-xs text-muted-foreground">
+            各セグメント入力には <C>autoComplete=&quot;off&quot;</C> が設定されており、時刻フィールドには意味のないブラウザのオートフィルドロップダウンを非表示にします。
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Each segment input sets <C>autoComplete=&quot;off&quot;</C> to suppress the browser
+            autofill dropdown, which is not meaningful for time fields.
+          </p>
+        )}
 
         <Section title={""}>
           <div className="flex items-center gap-2 justify-center">

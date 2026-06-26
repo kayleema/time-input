@@ -502,6 +502,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 ref={hoursRef}
                 type="text"
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder={placeholder ?? (format === "12h" ? "12" : "00")}
                 min={format === "12h" ? 1 : 0}
                 max={hourMax}
@@ -524,6 +525,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 ref={minutesRef}
                 type="text"
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder={placeholder ?? "00"}
                 min={0}
                 max={59}
@@ -549,6 +551,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                       ref={secondsRef}
                       type="text"
                       inputMode="numeric"
+                      autoComplete="off"
                       placeholder={placeholder ?? "00"}
                       min={0}
                       max={59}

@@ -40,6 +40,8 @@ export type Strings = {
   variantOverflow27: string
   variantAllow24: string
   variantDisabled: string
+  variantUnitSuffixes: string
+  variantUnitSuffixesEn: string
 
   // Scroll to step demo
   scrollOff: string
@@ -110,6 +112,8 @@ const en: Strings = {
   variantOverflow27: "Overflow hours (max 27)",
   variantAllow24: "Allow 24:00 only",
   variantDisabled: "Disabled",
+  variantUnitSuffixes: "Unit suffixes (時 分 秒)",
+  variantUnitSuffixesEn: "Unit suffixes (h m s)",
 
   scrollOff: "Off (default)",
   scrollOn: "On",
@@ -191,6 +195,8 @@ const ja: Strings = {
   variantOverflow27: "オーバーフロー時間（最大27）",
   variantAllow24: "24:00のみ許可",
   variantDisabled: "無効",
+  variantUnitSuffixes: "単位サフィックス（時 分 秒）",
+  variantUnitSuffixesEn: "単位サフィックス（h m s）",
 
   scrollOff: "オフ（デフォルト）",
   scrollOn: "オン",

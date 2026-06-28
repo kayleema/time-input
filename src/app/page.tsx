@@ -54,6 +54,10 @@ const [time, setTime] = React.useState("14:05")
 // Scroll to step (click a segment first, then scroll)
 <TimeInput scrollToStep />
 
+// Unit suffixes instead of colons
+<TimeInput unitSuffixes={{ hours: "時", minutes: "分", seconds: "秒" }} showSeconds />
+<TimeInput unitSuffixes={{ hours: "h", minutes: "m", seconds: "s" }} showSeconds />
+
 // Sizes
 <TimeInput size="sm" />
 <TimeInput size="default" />

@@ -129,6 +129,20 @@ export function VariantsDemo() {
       <Row label={s.variantAllow24}>
         <TimeInput allowOverflowHours maxOverflowHours={24} defaultValue="24:00" />
       </Row>
+      <Row label={s.variantUnitSuffixes}>
+        <TimeInput
+          showSeconds
+          defaultValue="13:59:34"
+          unitSuffixes={{ hours: "時", minutes: "分", seconds: "秒" }}
+        />
+      </Row>
+      <Row label={s.variantUnitSuffixesEn}>
+        <TimeInput
+          showSeconds
+          defaultValue="13:59:34"
+          unitSuffixes={{ hours: "h", minutes: "m", seconds: "s" }}
+        />
+      </Row>
       <Row label={s.variantDisabled}>
         <TimeInput disabled defaultValue="14:05" />
       </Row>

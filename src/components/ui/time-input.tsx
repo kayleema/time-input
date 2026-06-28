@@ -131,6 +131,8 @@ export interface TimeInputProps
   /** Name passed to the hidden input for native form submission */
   name?: string
   minutesAriaLabel?: string
+  /** Replace colon separators with unit suffixes, e.g. { hours: "時", minutes: "分", seconds: "秒" } */
+  unitSuffixes?: { hours: string; minutes: string; seconds?: string }
 }
 
 const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
@@ -159,6 +161,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
           onBlur,
           onPointerDown,
           minutesAriaLabel,
+          unitSuffixes,
           ...props
         },
         ref
@@ -518,9 +521,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 className={segCls}
                 aria-label="Hours"
             />
-            <span className={sepCls} aria-hidden="true">
-                    :
-                </span>
+            <span className={sepCls} aria-hidden="true">{unitSuffixes?.hours ?? ":"}</span>
             <input
                 ref={minutesRef}
                 type="text"
@@ -542,11 +543,12 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 className={segCls}
                 aria-label={minutesAriaLabel}
             />
+            {unitSuffixes && (
+                <span className={sepCls} aria-hidden="true">{unitSuffixes.minutes}</span>
+            )}
             {showSeconds && (
                 <>
-                        <span className={sepCls} aria-hidden="true">
-                            :
-                        </span>
+                  {!unitSuffixes && <span className={sepCls} aria-hidden="true">:</span>}
                   <input
                       ref={secondsRef}
                       type="text"
@@ -568,6 +570,9 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                       className={segCls}
                       aria-label="Seconds"
                   />
+                  {unitSuffixes?.seconds && (
+                      <span className={sepCls} aria-hidden="true">{unitSuffixes.seconds}</span>
+                  )}
                 </>
             )}
             {format === "12h" && (

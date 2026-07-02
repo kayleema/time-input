@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const timeInputVariants = cva(
-    "flex items-center rounded-md border border-input bg-background ring-offset-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 aria-invalid:border-destructive [&_input]:placeholder:text-foreground text-foreground",
+    "flex items-center rounded-md border border-input bg-background ring-offset-background transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 aria-invalid:border-destructive text-foreground",
     {
       variants: {
         size: {
@@ -20,6 +20,7 @@ const timeInputVariants = cva(
 
 type Period = "AM" | "PM"
 type MinuteRoundingMode = "floor" | "ceil" | "nearest"
+type SegField = "hours" | "minutes" | "seconds"
 
 interface Segments {
   hours: string
@@ -171,6 +172,19 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
       const lastEmitted = React.useRef(serialize(seg, format, showSeconds))
       const prevFormat = React.useRef(format)
 
+      const [allSelected, setAllSelected] = React.useState(false)
+      const allSelectedRef = React.useRef(false)
+
+      function clearAllSelected() {
+        allSelectedRef.current = false
+        setAllSelected(false)
+      }
+
+      function enterAllSelected() {
+        allSelectedRef.current = true
+        setAllSelected(true)
+      }
+
       const periods = React.useMemo<{ am: string; pm: string }>(() => {
         if (periodLabels) return periodLabels
         if (!locale) return { am: "AM", pm: "PM" }
@@ -207,7 +221,6 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
       stepRef.current = step
 
       React.useEffect(() => {
-        type SegField = "hours" | "minutes" | "seconds"
         const inputs: [React.RefObject<HTMLInputElement | null>, SegField][] = [
           [hoursRef, "hours"],
           [minutesRef, "minutes"],
@@ -276,6 +289,40 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         if (shouldAutoAdvance) {
           minutesRef.current?.focus()
           minutesRef.current?.select()
+        }
+      }
+
+      function startFreshTyping(digit: string) {
+        clearAllSelected()
+        commit({ hours: digit, minutes: "", seconds: "" })
+
+        const shouldAutoAdvance =
+            (format === "12h" && parseInt(digit, 10) > 1) ||
+            (format === "24h" && !allowOverflowHours && parseInt(digit, 10) > 2)
+        if (shouldAutoAdvance) {
+          minutesRef.current?.focus()
+          minutesRef.current?.select()
+        } else {
+          hoursRef.current?.focus()
+        }
+      }
+
+      function handleGroupKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+        if (disabled) return
+
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+          e.preventDefault()
+          enterAllSelected()
+          return
+        }
+
+        if (allSelectedRef.current) {
+          if (/^[0-9]$/.test(e.key)) {
+            e.preventDefault()
+            startFreshTyping(e.key)
+          } else {
+            clearAllSelected()
+          }
         }
       }
 
@@ -472,6 +519,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         if (Object.keys(patch).length > 0) {
           commit(patch)
         }
+        clearAllSelected()
         onBlur?.(lastEmitted.current)
       }
 
@@ -479,7 +527,29 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         onPointerDown?.(e)
         if (disabled || e.defaultPrevented) return
 
+        clearAllSelected()
+
         const target = e.target as HTMLElement
+        const startField = target.closest("[data-field]")?.getAttribute("data-field") as SegField | null
+        const touchedFields = new Set<SegField>(startField ? [startField] : [])
+
+        function onMove(ev: PointerEvent) {
+          const el = document.elementFromPoint(ev.clientX, ev.clientY)
+          const field = el?.closest("[data-field]")?.getAttribute("data-field") as SegField | undefined
+          if (field) touchedFields.add(field)
+          if (touchedFields.size > 1 && !allSelectedRef.current) {
+            enterAllSelected()
+          }
+        }
+        function onUp() {
+          window.removeEventListener("pointermove", onMove)
+          window.removeEventListener("pointerup", onUp)
+          window.removeEventListener("pointercancel", onUp)
+        }
+        window.addEventListener("pointermove", onMove)
+        window.addEventListener("pointerup", onUp)
+        window.addEventListener("pointercancel", onUp)
+
         if (target.closest("input, button")) return
 
         e.preventDefault()
@@ -487,8 +557,15 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
       }
 
       const segCls =
-          "w-6 bg-transparent text-center tabular-nums outline-none disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          "w-6 bg-transparent text-center tabular-nums outline-none disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none selection:bg-ring/25 selection:text-foreground"
       const sepCls = "select-none text-foreground"
+      const highlightCls = "bg-ring/25"
+      // Whichever segment happens to still have real focus/selection while allSelected is
+      // active keeps its own native caret and text-selection live underneath — hide both
+      // so the synthetic highlight above is the only thing that's visible, without ever
+      // having to move real DOM focus away from the input (which is fragile: it can leave
+      // the control unable to receive further keystrokes).
+      const inputHighlightCls = cn(highlightCls, "caret-transparent selection:bg-transparent")
 
       return (
           <div
@@ -496,6 +573,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
               aria-label="Time input"
               onBlur={handleBlur}
               onPointerDown={handlePointerDown}
+              onKeyDown={handleGroupKeyDown}
               className={cn(timeInputVariants({ size }), !disabled && "cursor-text", disabled && "cursor-not-allowed opacity-50", className)}
               {...props}
           >
@@ -518,10 +596,11 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "hours")}
                 onFocus={(e) => e.target.select()}
-                className={segCls}
+                className={cn(segCls, allSelected && inputHighlightCls)}
                 aria-label="Hours"
+                data-field="hours"
             />
-            <span className={sepCls} aria-hidden="true">{unitSuffixes?.hours ?? ":"}</span>
+            <span className={cn(sepCls, allSelected && highlightCls)} aria-hidden="true">{unitSuffixes?.hours ?? ":"}</span>
             <input
                 ref={minutesRef}
                 type="text"
@@ -540,15 +619,16 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "minutes")}
                 onFocus={(e) => e.target.select()}
-                className={segCls}
+                className={cn(segCls, allSelected && inputHighlightCls)}
                 aria-label={minutesAriaLabel}
+                data-field="minutes"
             />
             {unitSuffixes && (
-                <span className={sepCls} aria-hidden="true">{unitSuffixes.minutes}</span>
+                <span className={cn(sepCls, allSelected && highlightCls)} aria-hidden="true">{unitSuffixes.minutes}</span>
             )}
             {showSeconds && (
                 <>
-                  {!unitSuffixes && <span className={sepCls} aria-hidden="true">:</span>}
+                  {!unitSuffixes && <span className={cn(sepCls, allSelected && highlightCls)} aria-hidden="true">:</span>}
                   <input
                       ref={secondsRef}
                       type="text"
@@ -567,11 +647,12 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                       }}
                       onKeyDown={(e) => handleKeyDown(e, "seconds")}
                       onFocus={(e) => e.target.select()}
-                      className={segCls}
+                      className={cn(segCls, allSelected && inputHighlightCls)}
                       aria-label="Seconds"
+                      data-field="seconds"
                   />
                   {unitSuffixes?.seconds && (
-                      <span className={sepCls} aria-hidden="true">{unitSuffixes.seconds}</span>
+                      <span className={cn(sepCls, allSelected && highlightCls)} aria-hidden="true">{unitSuffixes.seconds}</span>
                   )}
                 </>
             )}
@@ -587,7 +668,10 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                         togglePeriod()
                       }
                     }}
-                    className="ml-1.5 min-w-[2.25rem] rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none"
+                    className={cn(
+                        "ml-1.5 min-w-[2.25rem] rounded px-1 py-0.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none",
+                        allSelected && highlightCls
+                    )}
                     aria-label={`Toggle period, currently ${seg.period === "AM" ? periods.am : periods.pm}`}
                 >
                   {seg.period === "AM" ? periods.am : periods.pm}

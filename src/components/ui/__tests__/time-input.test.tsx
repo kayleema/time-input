@@ -985,24 +985,29 @@ describe("Focus behavior", () => {
 // ---------------------------------------------------------------------------
 
 describe("Select all", () => {
-  const highlightClass = "bg-ring/25 rounded-[2px]"
+  // Exact-token match, not substring: segCls always includes "selection:bg-ring/25"
+  // (for the native-selection color, unrelated to the all-selected highlight), which
+  // would falsely match a plain `.toContain("bg-ring/25")` check.
+  function isHighlighted(el: Element | null) {
+    return (el?.className.split(/\s+/) ?? []).includes("bg-ring/25")
+  }
 
   it("Ctrl+A highlights all segments", () => {
     const { container } = render(<TimeInput defaultValue="09:30" />)
     getHours().focus()
     fireEvent.keyDown(getHours(), { key: "a", ctrlKey: true })
-    expect(getHours().className).toContain(highlightClass)
-    expect(getMinutes().className).toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(true)
+    expect(isHighlighted(getMinutes())).toBe(true)
     const group = container.querySelector('[role="group"]') as HTMLElement
     const colon = group.querySelector("span")
-    expect(colon?.className).toContain(highlightClass)
+    expect(isHighlighted(colon)).toBe(true)
   })
 
   it("Cmd+A (metaKey) also highlights all segments", () => {
     render(<TimeInput defaultValue="09:30" />)
     getHours().focus()
     fireEvent.keyDown(getHours(), { key: "a", metaKey: true })
-    expect(getHours().className).toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(true)
   })
 
   it("typing a digit that can start a valid hour clears the old value and stays on hours", () => {
@@ -1013,7 +1018,7 @@ describe("Select all", () => {
     expect(document.activeElement).toBe(getHours())
     expect(getHours().value).toBe("1")
     expect(getMinutes().value).toBe("")
-    expect(getHours().className).not.toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(false)
 
     fireEvent.change(getHours(), { target: { value: "15" } })
     fireEvent.change(getMinutes(), { target: { value: "45" } })
@@ -1035,21 +1040,21 @@ describe("Select all", () => {
     render(<TimeInput defaultValue="09:30" />)
     getHours().focus()
     fireEvent.keyDown(getHours(), { key: "a", ctrlKey: true })
-    expect(getHours().className).toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(true)
 
     fireEvent.pointerDown(getMinutes())
-    expect(getHours().className).not.toContain(highlightClass)
-    expect(getMinutes().className).not.toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(false)
+    expect(isHighlighted(getMinutes())).toBe(false)
   })
 
   it("blurring the whole group cancels the highlight", () => {
     const { container } = render(<TimeInput defaultValue="09:30" />)
     getHours().focus()
     fireEvent.keyDown(getHours(), { key: "a", ctrlKey: true })
-    expect(getHours().className).toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(true)
 
     blurContainer(container)
-    expect(getHours().className).not.toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(false)
   })
 
   it("Ctrl+A keeps real focus on the segment — only its native caret/selection is hidden", () => {
@@ -1070,7 +1075,7 @@ describe("Select all", () => {
     getHours().focus()
     fireEvent.keyDown(getHours(), { key: "a", ctrlKey: true })
     fireEvent.keyDown(getHours(), { key: "ArrowUp" })
-    expect(getHours().className).not.toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(false)
     expect(onChange).toHaveBeenLastCalledWith("15:05")
   })
 
@@ -1082,8 +1087,8 @@ describe("Select all", () => {
 
     fireEvent.pointerDown(getHours())
     fireEvent.pointerMove(window, { clientX: 50, clientY: 0 })
-    expect(getHours().className).toContain(highlightClass)
-    expect(minutes.className).toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(true)
+    expect(isHighlighted(minutes)).toBe(true)
 
     fireEvent.pointerUp(window)
   })
@@ -1094,7 +1099,7 @@ describe("Select all", () => {
 
     fireEvent.pointerDown(getHours())
     fireEvent.pointerMove(window, { clientX: 5, clientY: 0 })
-    expect(getHours().className).not.toContain(highlightClass)
+    expect(isHighlighted(getHours())).toBe(false)
 
     fireEvent.pointerUp(window)
   })

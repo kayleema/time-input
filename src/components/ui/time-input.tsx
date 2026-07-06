@@ -499,8 +499,15 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
       }
 
       function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
-        if (disabled || e.currentTarget.contains(e.relatedTarget)) {
+        if (disabled) {
           onBlur?.(lastEmitted.current)
+          return
+        }
+        // Focus moving between our own segments (e.g. hours auto-advancing to minutes)
+        // is not a real blur of the control — don't fire onBlur, since consumers may
+        // use it to commit/resync state (some remount this component via a `key` tied
+        // to the committed value), which would yank focus out from under the user.
+        if (e.currentTarget.contains(e.relatedTarget)) {
           return
         }
 
@@ -592,7 +599,6 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 onChange={handleHours}
                 onBlur={() => {
                   pad("hours")
-                  onBlur?.(lastEmitted.current)
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "hours")}
                 onFocus={(e) => e.target.select()}
@@ -615,7 +621,6 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 onChange={handleMinutes}
                 onBlur={() => {
                   pad("minutes")
-                  onBlur?.(lastEmitted.current)
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "minutes")}
                 onFocus={(e) => e.target.select()}
@@ -643,7 +648,6 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                       onChange={handleSeconds}
                       onBlur={() => {
                         pad("seconds")
-                        onBlur?.(lastEmitted.current)
                       }}
                       onKeyDown={(e) => handleKeyDown(e, "seconds")}
                       onFocus={(e) => e.target.select()}

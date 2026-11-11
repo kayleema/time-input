@@ -1,5 +1,6 @@
 import * as React from "react"
 import { render, screen, fireEvent, act } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { TimeInput } from "../time-input"
 
 // ---------------------------------------------------------------------------
@@ -11,8 +12,7 @@ function getHours() {
   return screen.getByRole("textbox", { name: "Hours" }) as HTMLInputElement
 }
 function getMinutes() {
-  // minutes no longer has a default aria-label (use minutesAriaLabel prop to set one)
-  return screen.getAllByRole("textbox")[1] as HTMLInputElement
+  return screen.getByRole("textbox", { name: "Minutes" }) as HTMLInputElement
 }
 function getSeconds() {
   return screen.getByRole("textbox", { name: "Seconds" }) as HTMLInputElement
@@ -81,6 +81,23 @@ describe("Rendering", () => {
   it("minutesAriaLabel sets aria-label on the minutes input", () => {
     render(<TimeInput minutesAriaLabel="Duration minutes" />)
     expect(screen.getByRole("textbox", { name: "Duration minutes" })).toBeInTheDocument()
+  })
+
+  it("hourAriaLabel sets aria-label on the hours input", () => {
+    render(<TimeInput hourAriaLabel="Duration hours" />)
+    expect(screen.getByRole("textbox", { name: "Duration hours" })).toHaveAttribute("data-field", "hours")
+  })
+
+  it("hourAriaLabel and minutesAriaLabel are optional: omitted, they default to \"Hours\" and \"Minutes\"", () => {
+    render(<TimeInput />)
+    expect(getHours()).toHaveAttribute("aria-label", "Hours")
+    expect(getMinutes()).toHaveAttribute("aria-label", "Minutes")
+  })
+
+  it("hourAriaLabel and minutesAriaLabel can be set together", () => {
+    render(<TimeInput hourAriaLabel="時" minutesAriaLabel="分" />)
+    expect(screen.getByRole("textbox", { name: "時" })).toHaveAttribute("data-field", "hours")
+    expect(screen.getByRole("textbox", { name: "分" })).toHaveAttribute("data-field", "minutes")
   })
 
   it("size sm adds h-9 class", () => {
@@ -1282,5 +1299,344 @@ describe("Text normalization", () => {
     // "２５" → "25" → clamp to 23 → "23"
     fireEvent.change(getHours(), { target: { value: "２５" } })
     expect(getHours()).toHaveValue("23")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Overwrite & focus flow (realistic keyboard/pointer via user-event)
+// ---------------------------------------------------------------------------
+
+describe("Overwrite & focus flow", () => {
+  function setup(ui: React.ReactElement) {
+    const user = userEvent.setup()
+    const utils = render(
+      <>
+        <button>before</button>
+        {ui}
+        <button>after</button>
+      </>
+    )
+    return { user, ...utils }
+  }
+
+  function expectFullySelected(el: HTMLInputElement) {
+    expect(document.activeElement).toBe(el)
+    expect(el.selectionStart).toBe(0)
+    expect(el.selectionEnd).toBe(el.value.length)
+  }
+
+  // Simulates a native input event as fired by mobile keyboards / IME, where keydown
+  // carries no usable key and the digit only arrives through the input event.
+  function nativeInsert(el: HTMLInputElement, nextValue: string, data: string) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+    act(() => {
+      setter.call(el, nextValue)
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, data, inputType: "insertText" }))
+    })
+  }
+
+  it("overwriting hours with two digits moves focus to minutes with minutes selected", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("14")
+    expect(getHours()).toHaveValue("14")
+    expect(onChange).toHaveBeenLastCalledWith("14:30")
+    expectFullySelected(getMinutes())
+    expect(getMinutes()).toHaveValue("30")
+  })
+
+  it("overwriting hours with a single auto-advancing digit selects minutes", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("7")
+    expect(onChange).toHaveBeenLastCalledWith("07:30")
+    expectFullySelected(getMinutes())
+  })
+
+  it("after overwriting hours, typing replaces the selected minutes and focus stays on minutes", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("1445")
+    expect(onChange).toHaveBeenLastCalledWith("14:45")
+    expect(document.activeElement).toBe(getMinutes())
+  })
+
+  it("after overwriting hours, Tab leaves minutes untouched and exits the control", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("14")
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }))
+    expect(onChange).toHaveBeenLastCalledWith("14:30")
+  })
+
+  it("replaces hours even when the caret is collapsed at the end of the field", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    const hours = getHours()
+    await user.click(hours)
+    // A mouse click in a real browser often collapses the select-on-focus selection
+    hours.setSelectionRange(2, 2)
+    await user.keyboard("1")
+    expect(hours).toHaveValue("1")
+    expect(document.activeElement).toBe(hours)
+    await user.keyboard("5")
+    expect(onChange).toHaveBeenLastCalledWith("15:30")
+    expectFullySelected(getMinutes())
+  })
+
+  it("a single non-advancing digit then a second digit completes hours", async () => {
+    const { user } = setup(<TimeInput defaultValue="09:30" />)
+    await user.click(getHours())
+    await user.keyboard("2")
+    expect(getHours()).toHaveValue("2")
+    expect(document.activeElement).toBe(getHours())
+    await user.keyboard("3")
+    expect(getHours()).toHaveValue("23")
+    expectFullySelected(getMinutes())
+  })
+
+  it("typing into a full last segment starts over and keeps focus", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getMinutes())
+    await user.keyboard("45")
+    expect(document.activeElement).toBe(getMinutes())
+    await user.keyboard("1")
+    expect(getMinutes()).toHaveValue("1")
+    expect(document.activeElement).toBe(getMinutes())
+    await user.keyboard("2")
+    expect(onChange).toHaveBeenLastCalledWith("09:12")
+    expect(document.activeElement).toBe(getMinutes())
+  })
+
+  it("typing a full time from empty walks hours → minutes and stays on minutes", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("0930")
+    expect(onChange).toHaveBeenLastCalledWith("09:30")
+    expect(document.activeElement).toBe(getMinutes())
+  })
+
+  it("with seconds: hours → minutes → seconds, each selected, focus stays on seconds", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput showSeconds defaultValue="09:30:15" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("10")
+    expectFullySelected(getMinutes())
+    await user.keyboard("20")
+    expectFullySelected(getSeconds())
+    await user.keyboard("40")
+    expect(onChange).toHaveBeenLastCalledWith("10:20:40")
+    expect(document.activeElement).toBe(getSeconds())
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }))
+  })
+
+  it("12h: overwriting hours selects minutes, completing minutes moves to the period toggle", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput format="12h" defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("11")
+    expectFullySelected(getMinutes())
+    await user.keyboard("15")
+    expect(onChange).toHaveBeenLastCalledWith("11:15")
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Toggle period/ }))
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "after" }))
+  })
+
+  it("Shift+Tab back into hours selects it so typing replaces", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getMinutes())
+    await user.tab({ shift: true })
+    expectFullySelected(getHours())
+    await user.keyboard("18")
+    expect(onChange).toHaveBeenLastCalledWith("18:30")
+    expectFullySelected(getMinutes())
+  })
+
+  it("Tab into the control from a previous field selects hours so typing replaces", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(screen.getByRole("button", { name: "before" }))
+    await user.tab()
+    expectFullySelected(getHours())
+    await user.keyboard("2")
+    expect(getHours()).toHaveValue("2")
+  })
+
+  it("Backspace on empty minutes returns to hours, selected for overwrite", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getMinutes())
+    await user.keyboard("{Backspace}")
+    expect(getMinutes()).toHaveValue("")
+    await user.keyboard("{Backspace}")
+    expectFullySelected(getHours())
+    await user.keyboard("1")
+    expect(getHours()).toHaveValue("1")
+  })
+
+  it("Backspace in a freshly focused segment clears it even if the caret was collapsed", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    const minutes = getMinutes()
+    await user.click(minutes)
+    minutes.setSelectionRange(1, 1)
+    await user.keyboard("{Backspace}")
+    expect(minutes).toHaveValue("")
+    expect(onChange).toHaveBeenLastCalledWith("")
+    expect(document.activeElement).toBe(minutes)
+  })
+
+  it("Delete in a freshly focused segment clears it", async () => {
+    const { user } = setup(<TimeInput defaultValue="09:30" />)
+    const hours = getHours()
+    await user.click(hours)
+    hours.setSelectionRange(0, 0)
+    await user.keyboard("{Delete}")
+    expect(hours).toHaveValue("")
+    expect(document.activeElement).toBe(hours)
+  })
+
+  it("Backspace after typing edits one digit at a time", async () => {
+    const { user } = setup(<TimeInput defaultValue="09:30" />)
+    const hours = getHours()
+    await user.click(hours)
+    await user.keyboard("2")
+    await user.keyboard("{Backspace}")
+    expect(hours).toHaveValue("")
+    expect(document.activeElement).toBe(hours)
+  })
+
+  it("arrow stepping still works and a following digit replaces the stepped value", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("{ArrowUp}")
+    expect(onChange).toHaveBeenLastCalledWith("10:30")
+    await user.keyboard("8")
+    expect(onChange).toHaveBeenLastCalledWith("08:30")
+    expectFullySelected(getMinutes())
+  })
+
+  it("Ctrl/Cmd + digit is not treated as typing", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getHours())
+    await user.keyboard("{Control>}1{/Control}")
+    expect(getHours()).toHaveValue("09")
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it("select-all then typing still overwrites from hours", async () => {
+    const onChange = vi.fn()
+    const { user } = setup(<TimeInput defaultValue="09:30" onChange={onChange} />)
+    await user.click(getMinutes())
+    await user.keyboard("{Control>}a{/Control}")
+    await user.keyboard("1")
+    expect(getHours()).toHaveValue("1")
+    expect(getMinutes()).toHaveValue("")
+    await user.keyboard("2")
+    expectFullySelected(getMinutes())
+    await user.keyboard("05")
+    expect(onChange).toHaveBeenLastCalledWith("12:05")
+    expect(document.activeElement).toBe(getMinutes())
+  })
+
+  describe("onBlur and focus containment", () => {
+    it("does not fire onBlur when focus auto-advances between segments", async () => {
+      const onBlur = vi.fn()
+      const { user } = setup(<TimeInput defaultValue="09:30" onBlur={onBlur} />)
+      await user.click(getHours())
+      await user.keyboard("1445")
+      expect(onBlur).not.toHaveBeenCalled()
+      await user.tab()
+      expect(onBlur).toHaveBeenCalledTimes(1)
+      expect(onBlur).toHaveBeenCalledWith("14:45")
+    })
+
+    it("does not fire onBlur when tabbing between segments", async () => {
+      const onBlur = vi.fn()
+      const { user } = setup(<TimeInput showSeconds defaultValue="09:30:00" onBlur={onBlur} />)
+      await user.click(getHours())
+      await user.tab()
+      await user.tab()
+      expect(document.activeElement).toBe(getSeconds())
+      expect(onBlur).not.toHaveBeenCalled()
+    })
+
+    it("keeps focus when the parent remounts the input via a key tied to the onBlur value", async () => {
+      function Remounting() {
+        const [committed, setCommitted] = React.useState("09:30")
+        return (
+          <>
+            <TimeInput key={committed} defaultValue={committed} onBlur={setCommitted} />
+            <output data-testid="committed">{committed}</output>
+          </>
+        )
+      }
+      const { user } = setup(<Remounting />)
+      await user.click(getHours())
+      await user.keyboard("1445")
+      expect(document.activeElement).toBe(getMinutes())
+      expect(getHours()).toHaveValue("14")
+      expect(getMinutes()).toHaveValue("45")
+      await user.tab()
+      expect(screen.getByTestId("committed")).toHaveTextContent("14:45")
+    })
+
+    it("works with a controlled parent: overwrite flows through value/onChange", async () => {
+      function Controlled() {
+        const [value, setValue] = React.useState("09:30")
+        return (
+          <>
+            <TimeInput value={value} onChange={setValue} />
+            <output data-testid="value">{value}</output>
+          </>
+        )
+      }
+      const { user } = setup(<Controlled />)
+      await user.click(getHours())
+      await user.keyboard("16")
+      expectFullySelected(getMinutes())
+      await user.keyboard("05")
+      expect(screen.getByTestId("value")).toHaveTextContent("16:05")
+      expect(document.activeElement).toBe(getMinutes())
+    })
+  })
+
+  describe("native input fallback (mobile keyboards / IME)", () => {
+    it("a digit inserted into a freshly focused full field replaces it", () => {
+      const onChange = vi.fn()
+      render(<TimeInput defaultValue="09:30" onChange={onChange} />)
+      const hours = getHours()
+      act(() => hours.focus())
+      nativeInsert(hours, "091", "1")
+      expect(hours).toHaveValue("1")
+      expect(document.activeElement).toBe(hours)
+      nativeInsert(hours, "14", "4")
+      expect(onChange).toHaveBeenLastCalledWith("14:30")
+      expect(document.activeElement).toBe(getMinutes())
+    })
+
+    it("a digit inserted into a full, non-fresh field starts over", () => {
+      const onChange = vi.fn()
+      render(<TimeInput defaultValue="09:30" onChange={onChange} />)
+      const minutes = getMinutes()
+      act(() => minutes.focus())
+      nativeInsert(minutes, "4", "4")
+      nativeInsert(minutes, "45", "5")
+      nativeInsert(minutes, "453", "3")
+      expect(minutes).toHaveValue("3")
+      expect(document.activeElement).toBe(minutes)
+    })
   })
 })

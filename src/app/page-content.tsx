@@ -174,7 +174,8 @@ export function PageContent({ usageBlock }: { usageBlock: React.ReactNode }) {
                   ["disabled", "boolean", "false"],
                   ["size", '"sm" | "default" | "lg"', '"default"'],
                   ["name", "string", "—"],
-                  ["minutesAriaLabel", "string", "—"],
+                  ["hourAriaLabel", "string", '"Hours"'],
+                  ["minutesAriaLabel", "string", '"Minutes"'],
                   ["unitSuffixes", "{ hours: string; minutes: string; seconds?: string }", "—"],
                   ["className", "string", "—"],
                 ].map(([prop, type, def]) => (

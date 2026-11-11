@@ -131,7 +131,10 @@ export interface TimeInputProps
   disabled?: boolean
   /** Name passed to the hidden input for native form submission */
   name?: string
+  /** Accessible label for the minutes segment. Defaults to "Minutes". */
   minutesAriaLabel?: string
+  /** Accessible label for the hours segment. Defaults to "Hours". */
+  hourAriaLabel?: string
   /** Replace colon separators with unit suffixes, e.g. { hours: "時", minutes: "分", seconds: "秒" } */
   unitSuffixes?: { hours: string; minutes: string; seconds?: string }
 }
@@ -161,6 +164,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
           id,
           onBlur,
           onPointerDown,
+          hourAriaLabel,
           minutesAriaLabel,
           unitSuffixes,
           ...props
@@ -171,6 +175,11 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
       const segRef = React.useRef(seg)
       const lastEmitted = React.useRef(serialize(seg, format, showSeconds))
       const prevFormat = React.useRef(format)
+
+      // The segment that was just focused and hasn't been typed into yet. The next digit
+      // typed there replaces its value instead of appending, regardless of where the
+      // native caret ended up (a mouse click can collapse the select-on-focus selection).
+      const freshField = React.useRef<SegField | null>(null)
 
       const [allSelected, setAllSelected] = React.useState(false)
       const allSelectedRef = React.useRef(false)
@@ -274,8 +283,37 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         return Object.keys(patch).length > 0 ? patch : null
       }
 
-      function handleHours(e: React.ChangeEvent<HTMLInputElement>) {
-        let digits = getDigits(e.target.value)
+      function focusSegment(el: HTMLInputElement | HTMLButtonElement | null) {
+        el?.focus()
+        if (el instanceof HTMLInputElement) el.select()
+      }
+
+      // Digits for a segment after a native change. If a digit was inserted into a
+      // segment that is fresh or already full, the inserted digit starts over rather
+      // than rolling the old value (so "09" + "1" becomes "1", not "91" → "23").
+      function digitsFromChange(e: React.ChangeEvent<HTMLInputElement>, field: SegField) {
+        const all = e.target.value.normalize("NFKC").replace(/\D/g, "")
+        const inserted = getDigits((e.nativeEvent as InputEvent).data ?? "")
+        if (inserted.length === 1 && (freshField.current === field || all.length > 2)) return inserted
+        return all.slice(-2)
+      }
+
+      function typeDigit(e: React.KeyboardEvent<HTMLInputElement>, field: SegField) {
+        if (allSelectedRef.current || e.metaKey || e.ctrlKey || e.altKey) return false
+        const digit = getDigits(e.key)
+        if (e.key.length !== 1 || digit.length !== 1) return false
+
+        e.preventDefault()
+        const prev = segRef.current[field]
+        const digits = freshField.current === field || prev.length >= 2 ? digit : prev + digit
+        freshField.current = null
+        if (field === "hours") applyHours(digits)
+        else if (field === "minutes") applyMinutes(digits)
+        else applySeconds(digits)
+        return true
+      }
+
+      function applyHours(digits: string) {
         if (digits.length === 2) {
           digits = String(Math.min(parseInt(digits, 10), hourMax)).padStart(2, "0")
         }
@@ -286,10 +324,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
             digits.length === 2 ||
             (format === "12h" && digits.length === 1 && parseInt(digits, 10) > 1) ||
             (format === "24h" && !allowOverflowHours && digits.length === 1 && parseInt(digits, 10) > 2)
-        if (shouldAutoAdvance) {
-          minutesRef.current?.focus()
-          minutesRef.current?.select()
-        }
+        if (shouldAutoAdvance) focusSegment(minutesRef.current)
       }
 
       function startFreshTyping(digit: string) {
@@ -300,10 +335,10 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
             (format === "12h" && parseInt(digit, 10) > 1) ||
             (format === "24h" && !allowOverflowHours && parseInt(digit, 10) > 2)
         if (shouldAutoAdvance) {
-          minutesRef.current?.focus()
-          minutesRef.current?.select()
+          focusSegment(minutesRef.current)
         } else {
           hoursRef.current?.focus()
+          freshField.current = null
         }
       }
 
@@ -326,8 +361,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         }
       }
 
-      function handleMinutes(e: React.ChangeEvent<HTMLInputElement>) {
-        let digits = getDigits(e.target.value)
+      function applyMinutes(digits: string) {
         const max = isOverflowMaxHour(segRef.current) ? 0 : 59
         if (digits.length > 0 && max === 0) {
           digits = "00"
@@ -337,18 +371,14 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         commit({ minutes: digits })
 
         const advance = digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
+        // The last numeric segment keeps focus once complete; the user tabs out.
         if (advance) {
-          if (showSeconds) {
-            secondsRef.current?.focus()
-            secondsRef.current?.select()
-          } else if (format === "12h") {
-            periodRef.current?.focus()
-          }
+          if (showSeconds) focusSegment(secondsRef.current)
+          else if (format === "12h") focusSegment(periodRef.current)
         }
       }
 
-      function handleSeconds(e: React.ChangeEvent<HTMLInputElement>) {
-        let digits = getDigits(e.target.value)
+      function applySeconds(digits: string) {
         const max = isOverflowMaxHour(segRef.current) ? 0 : 59
         if (digits.length > 0 && max === 0) {
           digits = "00"
@@ -358,9 +388,7 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         commit({ seconds: digits })
 
         const advance = digits.length === 2 || (digits.length === 1 && parseInt(digits, 10) > 5)
-        if (advance && format === "12h") {
-          periodRef.current?.focus()
-        }
+        if (advance && format === "12h") focusSegment(periodRef.current)
       }
 
       function pad(field: "hours" | "minutes" | "seconds") {
@@ -392,7 +420,21 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         commit({ [field]: String(next).padStart(2, "0") })
       }
 
+      function handleChange(e: React.ChangeEvent<HTMLInputElement>, field: SegField) {
+        const digits = digitsFromChange(e, field)
+        freshField.current = null
+        if (field === "hours") applyHours(digits)
+        else if (field === "minutes") applyMinutes(digits)
+        else applySeconds(digits)
+      }
+
+      function handleFocus(e: React.FocusEvent<HTMLInputElement>, field: SegField) {
+        freshField.current = field
+        e.target.select()
+      }
+
       function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>, field: "hours" | "minutes" | "seconds") {
+        if (typeDigit(e, field)) return
         if (e.key === "ArrowUp") {
           e.preventDefault()
           step(field, 1)
@@ -400,6 +442,14 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
         if (e.key === "ArrowDown") {
           e.preventDefault()
           step(field, -1)
+        }
+        // Like typing, deleting in a freshly focused segment clears the whole segment
+        // even if the native selection was collapsed by a click.
+        if ((e.key === "Backspace" || e.key === "Delete") && freshField.current === field && segRef.current[field] && !allSelectedRef.current) {
+          e.preventDefault()
+          freshField.current = null
+          commit({ [field]: "" })
+          return
         }
         if (e.key === "Backspace" && !segRef.current[field]) {
           if (field === "minutes") hoursRef.current?.focus()
@@ -596,14 +646,14 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 max={hourMax}
                 disabled={disabled}
                 value={seg.hours}
-                onChange={handleHours}
+                onChange={(e) => handleChange(e, "hours")}
                 onBlur={() => {
                   pad("hours")
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "hours")}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => handleFocus(e, "hours")}
                 className={cn(segCls, allSelected && inputHighlightCls)}
-                aria-label="Hours"
+                aria-label={hourAriaLabel ?? "Hours"}
                 data-field="hours"
             />
             <span className={cn(sepCls, allSelected && highlightCls)} aria-hidden="true">{unitSuffixes?.hours ?? ":"}</span>
@@ -618,14 +668,14 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                 step={roundMinutesToNearest ?? 1}
                 disabled={disabled}
                 value={seg.minutes}
-                onChange={handleMinutes}
+                onChange={(e) => handleChange(e, "minutes")}
                 onBlur={() => {
                   pad("minutes")
                 }}
                 onKeyDown={(e) => handleKeyDown(e, "minutes")}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => handleFocus(e, "minutes")}
                 className={cn(segCls, allSelected && inputHighlightCls)}
-                aria-label={minutesAriaLabel}
+                aria-label={minutesAriaLabel ?? "Minutes"}
                 data-field="minutes"
             />
             {unitSuffixes && (
@@ -645,12 +695,12 @@ const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(
                       step={roundMinutesToNearest ?? 1}
                       disabled={disabled}
                       value={seg.seconds}
-                      onChange={handleSeconds}
+                      onChange={(e) => handleChange(e, "seconds")}
                       onBlur={() => {
                         pad("seconds")
                       }}
                       onKeyDown={(e) => handleKeyDown(e, "seconds")}
-                      onFocus={(e) => e.target.select()}
+                      onFocus={(e) => handleFocus(e, "seconds")}
                       className={cn(segCls, allSelected && inputHighlightCls)}
                       aria-label="Seconds"
                       data-field="seconds"

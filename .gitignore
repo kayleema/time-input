@@ -3,3 +3,6 @@ node_modules/
 .next
 .idea
 .DS_Store
+/test-results/
+/playwright-report/
+/playwright/.cache/
